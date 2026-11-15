@@ -11,7 +11,7 @@ from backend.app.models.instrument import InstrumentDefinition
 
 @pytest.fixture
 def test_app():
-    return create_app()
+    return create_app(lifespan_handler=None)
 
 
 @pytest.mark.asyncio

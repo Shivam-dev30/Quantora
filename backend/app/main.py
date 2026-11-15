@@ -470,13 +470,13 @@ async def lifespan(app: FastAPI):
     logger.info("Graceful shutdown completed successfully.")
 
 
-def create_app() -> FastAPI:
+def create_app(lifespan_handler: Optional[Any] = lifespan) -> FastAPI:
     """Create configured FastAPI application."""
     app = FastAPI(
         title="Multi-Asset Market Alert Platform",
         description="Production-grade real-time market alert engine for Indian stocks, F&O, commodities, and crypto.",
         version="1.0.0",
-        lifespan=lifespan,
+        lifespan=lifespan_handler,
     )
 
     app.add_middleware(

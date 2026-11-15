@@ -69,6 +69,7 @@ def test_angel_one_scrip_classification():
 def test_instrument_manager_universe_filtering():
     """Verify resolution of configured symbols and expiry modes."""
     cfg = load_config()
+    cfg.markets["equity"].symbols = ["RELIANCE", "SBIN"]
     mgr = InstrumentManager(cfg)
 
     seed_angel = AngelOneInstrumentService()._get_seed_instruments()

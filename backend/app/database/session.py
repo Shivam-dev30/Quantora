@@ -84,3 +84,36 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
+
+
+async def set_test_engine(db_url: str) -> AsyncEngine:
+    """Explicitly configure an isolated engine for test runners."""
+    global _engine, _session_factory
+    if _engine is not None:
+        await _engine.dispose()
+    connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
+    _engine = create_async_engine(
+        db_url,
+        echo=False,
+        future=True,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+    )
+    _session_factory = async_sessionmaker(
+        _engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+    return _engine
+
+
+async def close_engine() -> None:
+    """Close and dispose the engine cleanly."""
+    global _engine, _session_factory
+    if _engine is not None:
+        await _engine.dispose()
+        _engine = None
+        _session_factory = None
+
