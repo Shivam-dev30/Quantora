@@ -2,13 +2,14 @@
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from backend.app.config.settings import get_config
 from backend.app.core.logging import get_logger
 from backend.app.database.models import UserModel
 from backend.app.database.session import get_db_session
+from backend.app.security.audit import log_security_event
 from backend.app.security.auth import (
     UserContext,
     create_access_token,
@@ -44,15 +45,24 @@ class RegisterRequest(BaseModel):
 
 
 @router.post("/login", dependencies=[Depends(rate_limit(max_requests=10, window_seconds=60))])
-async def login(req: LoginRequest, response: Response) -> Dict[str, Any]:
+async def login(req: LoginRequest, request: Request, response: Response) -> Dict[str, Any]:
     """Authenticate with username and password, returning JWT access token and setting secure cookie."""
+    client_ip = request.client.host if request.client else "unknown"
     async with get_db_session() as session:
         stmt = select(UserModel).where(UserModel.username == req.username.strip(), UserModel.is_active == True)
         res = await session.execute(stmt)
         user = res.scalar_one_or_none()
 
         if not user or not verify_password(req.password, user.hashed_password):
-            logger.warning(f"Failed login attempt for username: {req.username}")
+            logger.warning(f"Failed login attempt for username: {req.username} from ip: {client_ip}")
+            await log_security_event(
+                event_type="AUTH_LOGIN_FAILED",
+                message=f"Failed login attempt for username '{req.username}'",
+                severity="WARNING",
+                username=req.username,
+                client_ip=client_ip,
+                component="auth",
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials. Please check username and password.",
@@ -61,6 +71,16 @@ async def login(req: LoginRequest, response: Response) -> Dict[str, Any]:
         # Update last login timestamp
         user.last_login = datetime.utcnow()
         await session.commit()
+
+        await log_security_event(
+            event_type="AUTH_LOGIN_SUCCESS",
+            message=f"Successful login for user '{user.username}' (role: {user.role})",
+            severity="INFO",
+            user_id=user.id,
+            username=user.username,
+            client_ip=client_ip,
+            component="auth",
+        )
 
         token = create_access_token({"sub": user.username, "role": user.role, "uid": user.id})
 

@@ -937,14 +937,35 @@ async def get_engine_status() -> Dict[str, Any]:
 
 @router.post("/api/engine/start", dependencies=[Depends(rate_limit(max_requests=10, window_seconds=60))])
 async def start_engine(
+    request: Request,
     current_user: UserContext = Depends(require_admin),
 ) -> Dict[str, Any]:
     """Start or resume the real-time closed-candle indicator & alert engine."""
     import asyncio
     from backend.app.main import app_state, process_startup_catchup_crossovers
+    from backend.app.security.audit import log_security_event
+
+    # Idempotency: check if already running
+    if getattr(app_state, "is_engine_active", False):
+        return {
+            "status": "success",
+            "is_running": True,
+            "message": "Alert engine is already active.",
+        }
 
     app_state.is_engine_active = True
     app_state.last_engine_action = datetime.utcnow().isoformat()
+
+    client_ip = request.client.host if request.client else "unknown"
+    await log_security_event(
+        event_type="ENGINE_START",
+        message="Alert engine resumed by administrator",
+        severity="INFO",
+        user_id=current_user.user_id,
+        username=current_user.username,
+        client_ip=client_ip,
+        component="engine",
+    )
 
     # Trigger Quant Startup Catch-Up scan across all monitored instruments & timeframes
     asyncio.create_task(process_startup_catchup_crossovers(force_notify=True))
@@ -978,12 +999,35 @@ async def get_startup_catchup_crossovers() -> Dict[str, Any]:
 
 @router.post("/api/engine/stop", dependencies=[Depends(rate_limit(max_requests=10, window_seconds=60))])
 async def stop_engine(
+    request: Request,
     current_user: UserContext = Depends(require_admin),
 ) -> Dict[str, Any]:
     """Pause closed-candle alert generation and signal dispatching."""
     from backend.app.main import app_state
+    from backend.app.security.audit import log_security_event
+
+    # Idempotency: check if already paused
+    if not getattr(app_state, "is_engine_active", True):
+        return {
+            "status": "success",
+            "is_running": False,
+            "message": "Alert engine is already paused.",
+        }
+
     app_state.is_engine_active = False
     app_state.last_engine_action = datetime.utcnow().isoformat()
+
+    client_ip = request.client.host if request.client else "unknown"
+    await log_security_event(
+        event_type="ENGINE_STOP",
+        message="Alert engine paused by administrator",
+        severity="WARNING",
+        user_id=current_user.user_id,
+        username=current_user.username,
+        client_ip=client_ip,
+        component="engine",
+    )
+
     await ws_manager.broadcast({
         "type": "ENGINE_STATE_CHANGED",
         "data": {
