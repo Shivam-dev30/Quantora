@@ -15,6 +15,7 @@ from backend.app.api.websocket import ws_manager
 from backend.app.config.settings import FullSystemConfig, get_config
 from backend.app.core.event_bus import EventBus, get_event_bus
 from backend.app.core.logging import get_logger, setup_logging
+from backend.app.core.security_headers import SecurityHeadersMiddleware
 from backend.app.database.models import SignalModel
 from backend.app.database.session import get_db_session, init_db
 from backend.app.indicators.indicator_engine import IndicatorEngine
@@ -479,11 +480,20 @@ def create_app(lifespan_handler: Optional[Any] = lifespan) -> FastAPI:
         lifespan=lifespan_handler,
     )
 
+    cfg = get_config()
+
+    # Security Headers Middleware (OWASP Secure Headers)
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        is_production=cfg.settings.is_production(),
+    )
+
+    # Strict CORS allowlisting (disables insecure wildcard combinations)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cfg.settings.get_cors_origins(),
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
         allow_headers=["*"],
     )
 

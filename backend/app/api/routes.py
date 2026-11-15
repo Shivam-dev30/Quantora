@@ -479,8 +479,8 @@ async def configure_alert(req: ConfigureAlertRequest) -> Dict[str, Any]:
     warm up indicators on live data, and subscribe WebSocket feeds in real-time.
     """
     import asyncio
-    import yaml
     from pathlib import Path
+    from backend.app.core.atomic_yaml import atomic_write_yaml, read_yaml
     from backend.app.main import app_state
 
     if not app_state.instrument_manager or not app_state.stream_manager:
@@ -527,37 +527,34 @@ async def configure_alert(req: ConfigureAlertRequest) -> Dict[str, Any]:
     # Persist updated symbols to default_config.yaml so they survive restarts
     try:
         cfg_path = Path("backend/app/config/default_config.yaml")
-        if cfg_path.exists():
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                raw_yaml = yaml.safe_load(f) or {}
+        raw_yaml = read_yaml(cfg_path)
 
-            if "markets" not in raw_yaml:
-                raw_yaml["markets"] = {}
+        if "markets" not in raw_yaml:
+            raw_yaml["markets"] = {}
 
-            for m_k, m_val in cfg.markets.items():
-                if m_k not in raw_yaml["markets"]:
-                    raw_yaml["markets"][m_k] = {}
-                raw_yaml["markets"][m_k]["enabled"] = m_val.enabled
-                raw_yaml["markets"][m_k]["symbols"] = m_val.symbols
+        for m_k, m_val in cfg.markets.items():
+            if m_k not in raw_yaml["markets"]:
+                raw_yaml["markets"][m_k] = {}
+            raw_yaml["markets"][m_k]["enabled"] = m_val.enabled
+            raw_yaml["markets"][m_k]["symbols"] = m_val.symbols
 
-            if "strategy" not in raw_yaml:
-                raw_yaml["strategy"] = {}
-            raw_yaml["strategy"]["timeframes"] = cfg.strategy.timeframes
+        if "strategy" not in raw_yaml:
+            raw_yaml["strategy"] = {}
+        raw_yaml["strategy"]["timeframes"] = cfg.strategy.timeframes
 
-            if req.instrument_timeframes is not None:
-                if "instrument_timeframes" not in raw_yaml["strategy"]:
-                    raw_yaml["strategy"]["instrument_timeframes"] = {}
-                raw_yaml["strategy"]["instrument_timeframes"] = {
-                    k.upper(): [tf.lower() for tf in v]
-                    for k, v in req.instrument_timeframes.items()
-                }
-                cfg.strategy.instrument_timeframes = {
-                    k.upper(): [tf.lower() for tf in v]
-                    for k, v in req.instrument_timeframes.items()
-                }
+        if req.instrument_timeframes is not None:
+            if "instrument_timeframes" not in raw_yaml["strategy"]:
+                raw_yaml["strategy"]["instrument_timeframes"] = {}
+            raw_yaml["strategy"]["instrument_timeframes"] = {
+                k.upper(): [tf.lower() for tf in v]
+                for k, v in req.instrument_timeframes.items()
+            }
+            cfg.strategy.instrument_timeframes = {
+                k.upper(): [tf.lower() for tf in v]
+                for k, v in req.instrument_timeframes.items()
+            }
 
-            with open(cfg_path, "w", encoding="utf-8") as f:
-                yaml.safe_dump(raw_yaml, f, sort_keys=False)
+        await atomic_write_yaml(cfg_path, raw_yaml)
     except Exception as e:
         logger.warning(f"Could not persist config YAML: {e}")
 
@@ -689,27 +686,25 @@ async def remove_monitored_instrument(req: RemoveInstrumentRequest) -> Dict[str,
         if k_upper in symbols_to_purge or k_clean in symbols_to_purge:
             cfg.strategy.instrument_timeframes.pop(k, None)
 
-    # Persist updated markets and instrument_timeframes to default_config.yaml
+    # Persist updated markets and instrument_timeframes to default_config.yaml atomically
     try:
+        from backend.app.core.atomic_yaml import atomic_write_yaml, read_yaml
         cfg_path = Path("backend/app/config/default_config.yaml")
-        if cfg_path.exists():
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                raw_yaml = yaml.safe_load(f) or {}
+        raw_yaml = read_yaml(cfg_path)
 
-            if "markets" in raw_yaml:
-                for m_k, m_cfg in cfg.markets.items():
-                    if m_k in raw_yaml["markets"]:
-                        raw_yaml["markets"][m_k]["symbols"] = m_cfg.symbols
+        if "markets" in raw_yaml:
+            for m_k, m_cfg in cfg.markets.items():
+                if m_k in raw_yaml["markets"]:
+                    raw_yaml["markets"][m_k]["symbols"] = m_cfg.symbols
 
-            if "strategy" in raw_yaml and "instrument_timeframes" in raw_yaml["strategy"]:
-                for k in list(raw_yaml["strategy"]["instrument_timeframes"].keys()):
-                    k_upper = k.upper()
-                    k_clean = re.sub(r'-(EQ|BE|A|B|NSE|BSE)$', '', k_upper)
-                    if k_upper in symbols_to_purge or k_clean in symbols_to_purge:
-                        raw_yaml["strategy"]["instrument_timeframes"].pop(k, None)
+        if "strategy" in raw_yaml and "instrument_timeframes" in raw_yaml["strategy"]:
+            for k in list(raw_yaml["strategy"]["instrument_timeframes"].keys()):
+                k_upper = k.upper()
+                k_clean = re.sub(r'-(EQ|BE|A|B|NSE|BSE)$', '', k_upper)
+                if k_upper in symbols_to_purge or k_clean in symbols_to_purge:
+                    raw_yaml["strategy"]["instrument_timeframes"].pop(k, None)
 
-            with open(cfg_path, "w", encoding="utf-8") as f:
-                yaml.safe_dump(raw_yaml, f, sort_keys=False)
+        await atomic_write_yaml(cfg_path, raw_yaml)
     except Exception as e:
         logger.warning(f"Error persisting default_config.yaml on instrument removal: {e}")
 
@@ -757,22 +752,20 @@ async def update_instrument_timeframes(req: UpdateInstrumentTimeframesRequest) -
     cfg.strategy.instrument_timeframes[symbol] = clean_tfs
     newly_added = [tf for tf in clean_tfs if tf not in prev_tfs]
 
-    # Persist to default_config.yaml
+    # Persist to default_config.yaml atomically
     try:
+        from backend.app.core.atomic_yaml import atomic_write_yaml, read_yaml
         cfg_path = Path("backend/app/config/default_config.yaml")
-        if cfg_path.exists():
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                raw_yaml = yaml.safe_load(f) or {}
+        raw_yaml = read_yaml(cfg_path)
 
-            if "strategy" not in raw_yaml:
-                raw_yaml["strategy"] = {}
-            if "instrument_timeframes" not in raw_yaml["strategy"]:
-                raw_yaml["strategy"]["instrument_timeframes"] = {}
+        if "strategy" not in raw_yaml:
+            raw_yaml["strategy"] = {}
+        if "instrument_timeframes" not in raw_yaml["strategy"]:
+            raw_yaml["strategy"]["instrument_timeframes"] = {}
 
-            raw_yaml["strategy"]["instrument_timeframes"][symbol] = clean_tfs
+        raw_yaml["strategy"]["instrument_timeframes"][symbol] = clean_tfs
 
-            with open(cfg_path, "w", encoding="utf-8") as f:
-                yaml.safe_dump(raw_yaml, f, sort_keys=False)
+        await atomic_write_yaml(cfg_path, raw_yaml)
     except Exception as e:
         logger.warning(f"Could not persist instrument timeframes to config YAML: {e}")
 

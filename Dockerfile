@@ -25,11 +25,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Create runtime directories
-RUN mkdir -p logs data
+# Create non-root runtime user and directories
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -s /bin/sh -m appuser && \
+    mkdir -p logs data && \
+    chown -R appuser:appgroup /app
 
 # Expose HTTP & WebSocket port
 EXPOSE 8000
+
+# Run container as unprivileged user
+USER appuser
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

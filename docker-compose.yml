@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: market-alert-system
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "8000:8000"
     env_file:

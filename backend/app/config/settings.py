@@ -124,6 +124,24 @@ class AppSettings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
+    # Security, Auth & CORS settings
+    cors_allowed_origins: str = "http://localhost:8000,http://localhost:5173,http://127.0.0.1:8000,http://127.0.0.1:5173"
+    secret_key: str = "quantora-default-dev-secret-key-32bytes-min"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440
+    admin_api_key: Optional[str] = None
+    auth_enabled: bool = False
+    rate_limit_per_minute: int = 120
+
+    def get_cors_origins(self) -> List[str]:
+        if not self.cors_allowed_origins:
+            return ["http://localhost:8000", "http://127.0.0.1:8000"]
+        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
+    def is_production(self) -> bool:
+        return self.app_env.lower() in ("production", "prod")
+
+
 
 class FullSystemConfig(BaseModel):
     settings: AppSettings
