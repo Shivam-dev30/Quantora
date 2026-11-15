@@ -1,0 +1,270 @@
+markets:
+  equity:
+    enabled: true
+    provider: angelone
+    exchange: NSE
+    mode: selected
+    symbols:
+    - INDUSINDBK
+    - PAYTM
+    - SBIN
+    - TITAN
+    - VBL
+  equity_futures:
+    enabled: true
+    provider: angelone
+    exchange: NFO
+    mode: selected
+    expiry_mode: current
+    symbols:
+    - AXISBANK
+    - BANKNIFTY
+    - FINNIFTY
+    - HCLTECH
+    - HDFCBANK
+    - ICICIBANK
+    - INFY
+    - KOTAKBANK
+    - MIDCPNIFTY
+    - NIFTY
+    - NIFTYNXT50
+    - RELIANCE
+    - SBIN
+    - TCS
+    - WIPRO
+  equity_options:
+    enabled: false
+    provider: angelone
+    exchange: NFO
+    monitor_underlying_only: true
+    symbols: []
+  bse_equity:
+    enabled: true
+    provider: angelone
+    exchange: BSE
+    mode: selected
+    symbols:
+    - HAL
+    - HCLTECH
+  commodity:
+    enabled: true
+    provider: angelone
+    exchange: MCX
+    mode: selected
+    expiry_mode: current
+    symbols:
+    - CRUDEOILM
+    - NATURALGASM
+    - CRUDEOIL
+  crypto:
+    enabled: true
+    provider: delta
+    exchange: DELTA
+    mode: selected
+    symbols:
+    - AVAXUSD
+    - BNBUSD
+    - BTCUSD
+    - SOLUSD
+strategy:
+  name: ema_crossover
+  version: ema100_200_v1
+  ema_fast: 100
+  ema_slow: 200
+  timeframes:
+  - 15m
+  - 30m
+  - 1h
+  instrument_timeframes:
+    BNBUSD:
+    - 15m
+    - 30m
+    BSE-EQ:
+    - 15m
+    - 30m
+    - 1h
+    KOTAKBANK23NOV26FUT:
+    - 1h
+    BANKNIFTY23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    INFY23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    RELIANCE23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    HCLTECH23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    NIFTYNXT5023NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    AXISBANK23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    ICICIBANK23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    TCS23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    WIPRO23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    HDFCBANK23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    SBIN23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    FINNIFTY23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    XRPUSD:
+    - 15m
+    - 30m
+    - 1h
+    AVAXUSD:
+    - 15m
+    - 30m
+    - 1h
+    SUIUSD:
+    - 15m
+    - 30m
+    - 1h
+    LINKUSD:
+    - 15m
+    - 30m
+    - 1h
+    DOGEUSD:
+    - 15m
+    - 30m
+    - 1h
+    SOLUSD:
+    - 15m
+    - 30m
+    - 1h
+    NEARUSD:
+    - 15m
+    - 30m
+    - 1h
+    BTCUSD:
+    - 15m
+    - 30m
+    - 1h
+    NIFTY23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    MIDCPNIFTY23NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    INDUSINDBK-EQ:
+    - 15m
+    - 30m
+    - 1h
+    SBIN-EQ:
+    - 15m
+    - 30m
+    - 1h
+    VBL-EQ:
+    - 15m
+    - 30m
+    - 1h
+    PAYTM-EQ:
+    - 15m
+    - 30m
+    - 1h
+    TITAN-EQ:
+    - 15m
+    - 30m
+    - 1h
+    HAL:
+    - 15m
+    - 30m
+    - 1h
+    HCLTECH:
+    - 15m
+    - 30m
+    - 1h
+    INDUSINDBK:
+    - 15m
+    - 30m
+    - 1h
+    SBIN:
+    - 15m
+    - 30m
+    - 1h
+    VBL:
+    - 15m
+    - 30m
+    - 1h
+    PAYTM:
+    - 15m
+    - 30m
+    - 1h
+    TITAN:
+    - 15m
+    - 30m
+    - 1h
+    CRUDEOIL17NOV2610000CE:
+    - 15m
+    - 30m
+    - 1h
+    CRUDEOILM17NOV2610000CE:
+    - 15m
+    - 30m
+    - 1h
+    CRUDEOIL19NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+    CRUDEOILM19NOV26FUT:
+    - 15m
+    - 30m
+    - 1h
+  default_timeframe: 15m
+  min_warmup_candles: 250
+notifications:
+  detail_mode: STANDARD
+  telegram:
+    enabled: true
+    max_retries: 3
+    retry_delay_seconds: 2
+  email:
+    enabled: false
+    max_retries: 3
+    retry_delay_seconds: 5
+  whatsapp:
+    enabled: false
+    provider: meta_cloud
+    max_retries: 2
+    retry_delay_seconds: 5
+market_hours:
+  respect_exchange_hours: true
+display:
+  timezone: Asia/Kolkata
+  currency_symbols:
+    NSE: "\u20B9"
+    NFO: "\u20B9"
+    MCX: "\u20B9"
+    DELTA: $
+system:
+  database_url: sqlite+aiosqlite:///./market_alerts.db
+  host: 0.0.0.0
+  port: 8000
+  log_level: INFO

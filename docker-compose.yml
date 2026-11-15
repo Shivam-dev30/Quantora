@@ -1,0 +1,24 @@
+services:
+  market-alerts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: market-alert-system
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backend/app/config/default_config.yaml:/app/backend/app/config/default_config.yaml
+    environment:
+      - PYTHONUNBUFFERED=1
+      - APP_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
