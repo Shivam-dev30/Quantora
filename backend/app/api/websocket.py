@@ -12,15 +12,24 @@ logger = get_logger("dashboard_ws")
 class DashboardWebSocketManager:
     """Manages connected browser UI clients and broadcasts real-time events."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_connections: int = 100) -> None:
         self.active_connections: Set[WebSocket] = set()
+        self.max_connections = max_connections
         self._lock = asyncio.Lock()
 
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
+    async def connect(self, websocket: WebSocket) -> bool:
         async with self._lock:
+            if len(self.active_connections) >= self.max_connections:
+                logger.warning(
+                    f"Rejecting WS client: maximum capacity ({self.max_connections}) reached."
+                )
+                await websocket.close(code=1008, reason="Server at capacity")
+                return False
+
+            await websocket.accept()
             self.active_connections.add(websocket)
-        logger.info(f"Dashboard client connected. Active clients: {len(self.active_connections)}")
+            logger.info(f"Dashboard client connected. Active clients: {len(self.active_connections)}")
+            return True
 
     async def disconnect(self, websocket: WebSocket) -> None:
         async with self._lock:

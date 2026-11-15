@@ -2,8 +2,8 @@
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
+from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.api.websocket import ws_manager
@@ -16,15 +16,23 @@ from backend.app.database.models import (
 )
 from backend.app.database.session import get_db_session
 from backend.app.models.signal import SignalEvent, SignalType
+from backend.app.security.auth import (
+    UserContext,
+    get_current_user,
+    require_admin,
+    require_viewer,
+    verify_ws_token,
+)
+from backend.app.security.rate_limiter import rate_limit
 
 router = APIRouter()
 
 
 class TestAlertRequest(BaseModel):
-    symbol: str = "RELIANCE"
-    exchange: str = "NSE"
-    asset_class: str = "equity"
-    timeframe: str = "15m"
+    symbol: str = Field("RELIANCE", min_length=1, max_length=50, pattern=r"^[A-Za-z0-9_\-\.\:\/]+$")
+    exchange: str = Field("NSE", min_length=1, max_length=20, pattern=r"^[A-Za-z0-9_\-]+$")
+    asset_class: str = Field("equity", min_length=1, max_length=30)
+    timeframe: str = Field("15m", min_length=1, max_length=10)
     signal_type: str = "BULLISH"
     price: float = 1542.30
     ema100: float = 1538.25
@@ -225,21 +233,22 @@ class ConfigureAlertRequest(BaseModel):
 
 
 class UpdateInstrumentTimeframesRequest(BaseModel):
-    symbol: str
-    timeframes: List[str]
+    symbol: str = Field(..., min_length=1, max_length=50, pattern=r"^[A-Za-z0-9_\-\.\:\/]+$")
+    timeframes: List[str] = Field(..., min_items=1)
 
 
 class RemoveInstrumentRequest(BaseModel):
-    symbol: str
+    symbol: str = Field(..., min_length=1, max_length=50, pattern=r"^[A-Za-z0-9_\-\.\:\/]+$")
     asset_class: Optional[str] = ""
 
 
-@router.get("/api/available-instruments")
+@router.get("/api/available-instruments", dependencies=[Depends(rate_limit(max_requests=60, window_seconds=60))])
 async def get_available_instruments(
     query: Optional[str] = None,
     category: Optional[str] = Query(None),
     exchange: Optional[str] = Query(None),
     limit: int = Query(200, ge=1, le=2000),
+    current_user: UserContext = Depends(require_viewer),
 ) -> Dict[str, Any]:
     """Retrieve full dynamic instrument universe for adding into alerts.
 
@@ -472,8 +481,11 @@ async def get_active_alerts() -> Dict[str, Any]:
     }
 
 
-@router.post("/api/alerts/configure")
-async def configure_alert(req: ConfigureAlertRequest) -> Dict[str, Any]:
+@router.post("/api/alerts/configure", dependencies=[Depends(rate_limit(max_requests=30, window_seconds=60))])
+async def configure_alert(
+    req: ConfigureAlertRequest,
+    current_user: UserContext = Depends(require_admin),
+) -> Dict[str, Any]:
     """
     Dynamically add or set coins/stocks for EMA 100/200 crossover alerts,
     warm up indicators on live data, and subscribe WebSocket feeds in real-time.
@@ -617,8 +629,11 @@ async def configure_alert(req: ConfigureAlertRequest) -> Dict[str, Any]:
     }
 
 
-@router.delete("/api/alerts/instrument")
-async def remove_monitored_instrument(req: RemoveInstrumentRequest) -> Dict[str, Any]:
+@router.delete("/api/alerts/instrument", dependencies=[Depends(rate_limit(max_requests=30, window_seconds=60))])
+async def remove_monitored_instrument(
+    req: RemoveInstrumentRequest,
+    current_user: UserContext = Depends(require_admin),
+) -> Dict[str, Any]:
     """Remove a coin or stock from active monitoring."""
     import re
     import yaml
@@ -734,8 +749,11 @@ async def remove_monitored_instrument(req: RemoveInstrumentRequest) -> Dict[str,
     }
 
 
-@router.post("/api/alerts/instrument-timeframes")
-async def update_instrument_timeframes(req: UpdateInstrumentTimeframesRequest) -> Dict[str, Any]:
+@router.post("/api/alerts/instrument-timeframes", dependencies=[Depends(rate_limit(max_requests=30, window_seconds=60))])
+async def update_instrument_timeframes(
+    req: UpdateInstrumentTimeframesRequest,
+    current_user: UserContext = Depends(require_admin),
+) -> Dict[str, Any]:
     """Update timeframes for a single specific stock/coin without altering others."""
     import asyncio
     import yaml
@@ -844,8 +862,11 @@ async def get_notifications_status() -> Dict[str, Any]:
     }
 
 
-@router.post("/api/test-alert")
-async def trigger_test_alert(req: TestAlertRequest) -> Dict[str, Any]:
+@router.post("/api/test-alert", dependencies=[Depends(rate_limit(max_requests=5, window_seconds=60))])
+async def trigger_test_alert(
+    req: TestAlertRequest,
+    current_user: UserContext = Depends(require_admin),
+) -> Dict[str, Any]:
     """Trigger a manual test alert across all active notification channels."""
     from backend.app.main import app_state
 
@@ -914,8 +935,10 @@ async def get_engine_status() -> Dict[str, Any]:
     }
 
 
-@router.post("/api/engine/start")
-async def start_engine() -> Dict[str, Any]:
+@router.post("/api/engine/start", dependencies=[Depends(rate_limit(max_requests=10, window_seconds=60))])
+async def start_engine(
+    current_user: UserContext = Depends(require_admin),
+) -> Dict[str, Any]:
     """Start or resume the real-time closed-candle indicator & alert engine."""
     import asyncio
     from backend.app.main import app_state, process_startup_catchup_crossovers
@@ -953,8 +976,10 @@ async def get_startup_catchup_crossovers() -> Dict[str, Any]:
     }
 
 
-@router.post("/api/engine/stop")
-async def stop_engine() -> Dict[str, Any]:
+@router.post("/api/engine/stop", dependencies=[Depends(rate_limit(max_requests=10, window_seconds=60))])
+async def stop_engine(
+    current_user: UserContext = Depends(require_admin),
+) -> Dict[str, Any]:
     """Pause closed-candle alert generation and signal dispatching."""
     from backend.app.main import app_state
     app_state.is_engine_active = False
@@ -971,9 +996,22 @@ async def stop_engine() -> Dict[str, Any]:
 
 
 @router.websocket("/ws/dashboard")
-async def dashboard_websocket_endpoint(websocket: WebSocket):
+async def dashboard_websocket_endpoint(
+    websocket: WebSocket,
+    token: Optional[str] = Query(None),
+):
     """Real-time WebSocket connection for live dashboard streaming."""
-    await ws_manager.connect(websocket)
+    cfg = get_config()
+    # Authenticate WebSocket connection if auth is enabled
+    user = verify_ws_token(token)
+    if cfg.settings.auth_enabled and not user:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Unauthorized")
+        return
+
+    connected = await ws_manager.connect(websocket)
+    if not connected:
+        return
+
     try:
         while True:
             # Keep connection alive, listen for client pings

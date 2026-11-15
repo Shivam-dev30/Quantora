@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc, select
 from backend.app.api.routes import router as api_router
+from backend.app.security.routes import router as auth_router
 from backend.app.api.websocket import ws_manager
 from backend.app.config.settings import FullSystemConfig, get_config
 from backend.app.core.event_bus import EventBus, get_event_bus
@@ -497,6 +498,7 @@ def create_app(lifespan_handler: Optional[Any] = lifespan) -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.include_router(auth_router)
     app.include_router(api_router)
 
     # Mount compiled frontend terminal if present
